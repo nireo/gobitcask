@@ -25,13 +25,19 @@ func DefaultConfigurtion() *Options {
 }
 
 type DB struct {
-	Options *Options
-	KeyDir  *keydir.KeyDir
+	Options   *Options
+	KeyDir    *keydir.KeyDir
+	directory string
 
 	// mapping the file ids into the datafiles.
 	Manager map[uint32]*datafile.Datafile
 	WFile   *datafile.Datafile
 	rwmutex *sync.RWMutex
+}
+
+// GetDirectory returns the directory in which all the datafiles are begin stored.
+func (db *DB) GetDirectory() string {
+	return db.directory
 }
 
 // Open starts the database from a directory
@@ -61,6 +67,10 @@ func (db *DB) Put(key, value []byte) error {
 	defer db.rwmutex.Unlock()
 
 	// TODO: check the if the writable file is too large.
+	if db.WFile.Offset() > db.Options.MaxDatafileSize {
+
+	}
+
 	entry, err := db.WFile.Write(key, value)
 	if err != nil {
 		return err
@@ -72,8 +82,9 @@ func (db *DB) Put(key, value []byte) error {
 	return nil
 }
 
+// Close closes the database this is normally used when defering
 func (db *DB) Close() {
-	db.WFile.
+	db.WFile.Close()
 }
 
 // Get finds value with key and then returns the value.

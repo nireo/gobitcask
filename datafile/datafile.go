@@ -71,3 +71,8 @@ func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
 func (df *Datafile) Close() {
 	df.file.Close()
 }
+
+// Offset returns offset to the end of the file.
+func (df *Datafile) Offset() int64 {
+	return df.offset
+}
