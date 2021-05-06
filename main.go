@@ -45,7 +45,7 @@ func Open(directory string, options *Options) (*DB, error) {
 	// check if the directory exists
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
 		// it doesnt exist
-		if err := os.Mkdir(directory, os.ModeDir); err != nil {
+		if err := os.Mkdir(directory, 0777); err != nil {
 			return nil, err
 		}
 	}
@@ -54,8 +54,17 @@ func Open(directory string, options *Options) (*DB, error) {
 		options = DefaultConfigurtion()
 	}
 
+	writableFile, err := datafile.NewDatafile(directory)
+	if err != nil {
+		return nil, err
+	}
+
 	db := &DB{
-		Options: options,
+		Options:   options,
+		KeyDir:    keydir.NewKeyDir(),
+		rwmutex:   &sync.RWMutex{},
+		WFile:     writableFile,
+		directory: directory,
 	}
 
 	return db, nil

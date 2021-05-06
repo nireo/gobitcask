@@ -15,6 +15,14 @@ type KeyDir struct {
 	entries map[string]*MemEntry
 }
 
+// NewKeyDir creates a new instance of a key directory.
+func NewKeyDir() *KeyDir {
+	return &KeyDir{
+		entries: make(map[string]*MemEntry),
+	}
+}
+
+// Get gets key metadata with a given key.
 func (kd *KeyDir) Get(key string) *MemEntry {
 	keyDirLock.RLock()
 	defer keyDirLock.RUnlock()
@@ -23,6 +31,7 @@ func (kd *KeyDir) Get(key string) *MemEntry {
 	return entry
 }
 
+// Put adds a key with some metadata into the key directory.
 func (kd *KeyDir) Put(key string, data *MemEntry) {
 	keyDirLock.Lock()
 	defer keyDirLock.Unlock()
@@ -30,6 +39,7 @@ func (kd *KeyDir) Put(key string, data *MemEntry) {
 	kd.entries[key] = data
 }
 
+// Delete removes the key metadata from the key directory
 func (kd *KeyDir) Delete(key string) {
 	keyDirLock.Lock()
 	defer keyDirLock.Unlock()

@@ -3,7 +3,9 @@ package hint
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // HintFile represents a hint file that has
@@ -36,4 +38,17 @@ func (hf *HintFile) Append(timestamp, vsize uint32, offset int64, key []byte) er
 	}
 
 	return nil
+}
+
+// NewHintFile creates a new hint file from a timestamp
+func NewHintFile(directory string, timestamp uint32) (*HintFile, error) {
+	path := filepath.Join(directory, fmt.Sprintf("%v.hnt", timestamp))
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HintFile{
+		File: f,
+	}, nil
 }

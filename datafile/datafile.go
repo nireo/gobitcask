@@ -2,11 +2,14 @@ package datafile
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/nireo/bitcask/encoder"
+	"github.com/nireo/bitcask/hint"
 	"github.com/nireo/bitcask/keydir"
 )
 
@@ -25,6 +28,32 @@ type Datafile struct {
 
 	// we need this such that we can easily create key metadata.
 	offset int64
+
+	hintFile *hint.HintFile
+}
+
+// NewDatafile creates a new datafile into a given directory. It also creates a fileid
+// that is the current unix timestamp.
+func NewDatafile(directory string) (*Datafile, error) {
+	timestamp := uint32(time.Now().Unix())
+	path := filepath.Join(directory, fmt.Sprintf("%d.df", timestamp))
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		return nil, err
+	}
+
+	hintFile, err := hint.NewHintFile(directory, timestamp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Datafile{
+		offset:   0,
+		id:       timestamp,
+		file:     f,
+		hintFile: hintFile,
+	}, nil
 }
 
 // readOffset reads valueSize amount of bytes starting from offset in the datafile.
@@ -58,6 +87,12 @@ func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
 	if sz != nBytes {
 		return nil, ErrWrongByteCount
 	}
+
+	if err := df.hintFile.Append(timestamp, uint32(len(value)), df.offset, key); err != nil {
+		return nil, err
+	}
+
+	// now that we have stored the value offset we can add to it
 	df.offset += int64(sz)
 
 	return &keydir.MemEntry{
@@ -70,6 +105,7 @@ func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
 
 func (df *Datafile) Close() {
 	df.file.Close()
+	df.hintFile.Close()
 }
 
 // Offset returns offset to the end of the file.
