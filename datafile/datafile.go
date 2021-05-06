@@ -28,7 +28,7 @@ type Datafile struct {
 }
 
 // readOffset reads valueSize amount of bytes starting from offset in the datafile.
-func (df *Datafile) readOffset(offset int64, valueSize uint32) ([]byte, error) {
+func (df *Datafile) ReadOffset(offset int64, valueSize uint32) ([]byte, error) {
 	// create a buffer of size valueSize and read that data starting from 'offset'
 	buffer := make([]byte, valueSize)
 	df.file.Seek(offset, 0)
@@ -42,7 +42,7 @@ func (df *Datafile) readOffset(offset int64, valueSize uint32) ([]byte, error) {
 
 // write writes a key-value pair in to a datafile. It also returns key-metadata such that it is
 // easier to then append this key into the key-dir.
-func (df *Datafile) write(key, value []byte) (*keydir.MemEntry, error) {
+func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
 	// construct the entry data
 	timestamp := uint32(time.Now().Unix())
 	asBytes := encoder.EncodeEntry(
@@ -66,4 +66,8 @@ func (df *Datafile) write(key, value []byte) (*keydir.MemEntry, error) {
 		ValSize:   uint32(len(value)),
 		FileID:    df.id,
 	}, nil
+}
+
+func (df *Datafile) Close() {
+	df.file.Close()
 }
