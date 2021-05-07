@@ -65,6 +65,7 @@ func Open(directory string, options *Options) (*DB, error) {
 		rwmutex:   &sync.RWMutex{},
 		WFile:     writableFile,
 		directory: directory,
+		Manager:   make(map[uint32]*datafile.Datafile),
 	}
 
 	return db, nil
@@ -98,15 +99,36 @@ func (db *DB) Close() {
 
 // Get finds value with key and then returns the value.
 func (db *DB) Get(key []byte) ([]byte, error) {
+	db.rwmutex.RLock()
+	defer db.rwmutex.RLock()
+
 	entry := db.KeyDir.Get(string(key))
 	if entry == nil {
 		return nil, errors.New("could not find value from keydir")
 	}
 
-	value, err := db.Manager[entry.FileID].ReadOffset(entry.ValOffset, entry.ValSize)
+	file, err := db.getDataFile(entry.FileID)
+	if err != nil {
+		return nil, errors.New("could not find key in the specified data file")
+	}
+
+	value, err := file.ReadOffset(entry.ValOffset, entry.ValSize)
 	if err != nil {
 		return nil, errors.New("could not find key in the specified data file")
 	}
 
 	return value, nil
+}
+
+func (db *DB) getDataFile(id uint32) (*datafile.Datafile, error) {
+	if db.WFile.ID() == id {
+		return db.WFile, nil
+	}
+
+	file, ok := db.Manager[id]
+	if !ok {
+		return nil, errors.New("could not find datafile file")
+	}
+
+	return file, nil
 }

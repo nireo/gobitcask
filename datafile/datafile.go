@@ -60,7 +60,14 @@ func NewDatafile(directory string) (*Datafile, error) {
 func (df *Datafile) ReadOffset(offset int64, valueSize uint32) ([]byte, error) {
 	// create a buffer of size valueSize and read that data starting from 'offset'
 	buffer := make([]byte, valueSize)
-	df.file.Seek(offset, 0)
+
+	if df.file == nil {
+		return nil, errors.New("the datafile is not set")
+	}
+
+	if _, err := df.file.Seek(offset, 0); err != nil {
+		return nil, err
+	}
 
 	if _, err := df.file.Read(buffer); err != nil {
 		return nil, err
@@ -111,4 +118,8 @@ func (df *Datafile) Close() {
 // Offset returns offset to the end of the file.
 func (df *Datafile) Offset() int64 {
 	return df.offset
+}
+
+func (df *Datafile) ID() uint32 {
+	return df.id
 }

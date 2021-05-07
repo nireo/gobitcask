@@ -9,7 +9,7 @@ type MemEntry struct {
 	Timestamp uint32
 }
 
-var keyDirLock *sync.RWMutex
+var keyDirLock = &sync.RWMutex{}
 
 type KeyDir struct {
 	entries map[string]*MemEntry
