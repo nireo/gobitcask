@@ -20,6 +20,7 @@ func createTestDatabase(t *testing.T) *bitcask.DB {
 	}
 
 	t.Cleanup(func() {
+		db.Close()
 		// remove all the persistance related data
 		if err := os.RemoveAll(db.GetDirectory()); err != nil {
 			log.Printf("could not delete database folder")
@@ -48,6 +49,26 @@ func TestWritableFileCreated(t *testing.T) {
 	count := 0
 	for _, file := range files {
 		if strings.HasSuffix(file.Name(), ".df") {
+			count++
+		}
+	}
+
+	if count != 1 {
+		t.Errorf("a writable file was not found")
+	}
+}
+
+func TestHintFileCreated(t *testing.T) {
+	db := createTestDatabase(t)
+
+	files, err := ioutil.ReadDir(db.GetDirectory())
+	if err != nil {
+		t.Errorf("error reading files from directory: %s", err)
+	}
+
+	count := 0
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".hnt") {
 			count++
 		}
 	}
