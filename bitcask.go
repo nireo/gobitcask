@@ -2,10 +2,15 @@ package bitcask
 
 import (
 	"errors"
+	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/nireo/bitcask/datafile"
+	"github.com/nireo/bitcask/hint"
 	"github.com/nireo/bitcask/keydir"
 )
 
@@ -54,19 +59,26 @@ func Open(directory string, options *Options) (*DB, error) {
 		options = DefaultConfigurtion()
 	}
 
-	writableFile, err := datafile.NewDatafile(directory)
-	if err != nil {
-		return nil, err
-	}
+	// we want to parse the datafiles before creating another writable one
 
 	db := &DB{
 		Options:   options,
 		KeyDir:    keydir.NewKeyDir(),
 		rwmutex:   &sync.RWMutex{},
-		WFile:     writableFile,
 		directory: directory,
 		Manager:   make(map[uint32]*datafile.Datafile),
 	}
+
+	if err := db.parsePersistanceFiles(); err != nil {
+		return nil, err
+	}
+
+	writableFile, err := datafile.NewDatafile(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	db.WFile = writableFile
 
 	return db, nil
 }
@@ -131,4 +143,52 @@ func (db *DB) getDataFile(id uint32) (*datafile.Datafile, error) {
 	}
 
 	return file, nil
+}
+
+// parsePersistanceFiles takes in all of the hint files and then parses their metadata into
+// the keydirectory. The hint files are used to reduce startup time since without we would have
+// to scan files that are multiple gigabytes large.
+func (db *DB) parsePersistanceFiles() error {
+	var hintfiles []string
+
+	files, err := ioutil.ReadDir(db.directory)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".hnt") {
+			hintfiles = append(hintfiles, file.Name())
+		}
+
+		if strings.HasSuffix(file.Name(), ".df") {
+			df, err := datafile.NewReadOnlyDatafile(filepath.Join(
+				db.directory, file.Name(),
+			))
+			if err != nil {
+				return err
+			}
+
+			db.Manager[df.ID()] = df
+		}
+	}
+
+	for _, hintfile := range hintfiles {
+		fileID, err := datafile.ParseID(hintfile)
+		if err != nil {
+			log.Printf("could not parse file: %d", fileID)
+			continue
+		}
+
+		if err := hint.AppendPathToKeyDir(
+			filepath.Join(db.directory, hintfile),
+			fileID,
+			db.KeyDir,
+		); err != nil {
+			log.Printf("could not parse file: %d", fileID)
+			continue
+		}
+	}
+
+	return nil
 }

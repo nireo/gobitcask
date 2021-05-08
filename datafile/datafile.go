@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 
 var (
 	ErrWrongByteCount = errors.New("wrote wrong amount of bytes to file.")
+	ErrNoFileID       = errors.New("the filename didn't contain a fileid")
 )
 
 type DatafileManager struct {
@@ -54,6 +57,44 @@ func NewDatafile(directory string) (*Datafile, error) {
 		file:     f,
 		hintFile: hintFile,
 	}, nil
+}
+
+func NewReadOnlyDatafile(path string) (*Datafile, error) {
+	f, err := os.OpenFile(path, os.O_RDONLY, 0777)
+	if err != nil {
+		return nil, err
+	}
+
+	fileID, err := ParseID(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// no need to parse the hint file since a read-only file will not do anything
+	// with the hint file pointer.
+	return &Datafile{
+		offset:   0,
+		file:     f,
+		id:       fileID,
+		hintFile: nil,
+	}, nil
+}
+
+func ParseID(path string) (uint32, error) {
+	re := regexp.MustCompile("[0-9]+")
+	matches := re.FindAllString(path, -1)
+
+	if len(matches) == 0 {
+		return 0, ErrNoFileID
+	}
+
+	// convert it into number
+	fileID, err := strconv.ParseUint(matches[len(matches)-1], 10, 32)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint32(fileID), nil
 }
 
 // readOffset reads valueSize amount of bytes starting from offset in the datafile.
