@@ -89,7 +89,7 @@ func DecodeHint(buffer []byte) (uint32, uint32, int64, []byte, uint32) {
 	offset := binary.LittleEndian.Uint64(buffer[12:20])
 
 	ksize := binary.LittleEndian.Uint32(buffer[4:8])
-	key := buffer[20:ksize]
+	key := buffer[20 : ksize+20]
 
 	return timestamp, vsize, int64(offset), key, 20 + ksize
 }
