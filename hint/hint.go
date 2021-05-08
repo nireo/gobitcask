@@ -16,7 +16,7 @@ type HintFile struct {
 	File *os.File
 }
 
-type hintScanner struct {
+type HintScanner struct {
 	*bufio.Scanner
 }
 
@@ -47,23 +47,23 @@ func (hf *HintFile) Append(timestamp, vsize uint32, offset int64, key []byte) er
 	return nil
 }
 
-func initScanner(file *os.File) *hintScanner {
+func InitHintScanner(file *os.File) *HintScanner {
 	s := bufio.NewScanner(file)
 	buffer := make([]byte, 4096)
 	s.Buffer(buffer, bufio.MaxScanTokenSize)
 	s.Split(func(data []byte, atEOF bool) (int, []byte, error) {
 		_, _, _, _, bytesRead := DecodeHint(data)
-		if bytesRead == 0 {
+		if bytesRead != 0 {
 			return int(bytesRead), data[:bytesRead], nil
 		}
 
 		return 0, nil, nil
 	})
 
-	return &hintScanner{s}
+	return &HintScanner{s}
 }
 
-func (hs *hintScanner) next() (*keydir.MemEntry, []byte, error) {
+func (hs *HintScanner) Next() (*keydir.MemEntry, []byte, error) {
 	hs.Scan()
 	timestamp, vsize, offset, key, bytesRead := DecodeHint(hs.Bytes())
 	if bytesRead == 0 {
@@ -107,6 +107,8 @@ func NewHintFile(directory string, timestamp uint32) (*HintFile, error) {
 	}, nil
 }
 
+// AppendPathToKeyDir takes a hint file from path and then fills the given keydirectory pointer with
+// the key meta-data in the files. The dataFileID is also needed since it isn't stored in the hint-file.
 func AppendPathToKeyDir(path string, dataFileID uint32, kd *keydir.KeyDir) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -114,9 +116,9 @@ func AppendPathToKeyDir(path string, dataFileID uint32, kd *keydir.KeyDir) error
 	}
 	defer f.Close()
 
-	scanner := initScanner(f)
+	scanner := InitHintScanner(f)
 	for {
-		mementry, key, err := scanner.next()
+		mementry, key, err := scanner.Next()
 		if err != nil {
 			break
 		}
