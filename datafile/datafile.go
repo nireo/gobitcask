@@ -35,6 +35,10 @@ type Datafile struct {
 	hintFile *hint.HintFile
 }
 
+func (df *Datafile) GetPath(directory string) string {
+	return filepath.Join(directory, df.file.Name())
+}
+
 // NewDatafile creates a new datafile into a given directory. It also creates a fileid
 // that is the current unix timestamp.
 func NewDatafile(directory string) (*Datafile, error) {

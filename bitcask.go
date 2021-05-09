@@ -90,7 +90,15 @@ func (db *DB) Put(key, value []byte) error {
 
 	// TODO: check the if the writable file is too large.
 	if db.WFile.Offset() > db.Options.MaxDatafileSize {
+		// close the file
+		db.WFile.Close()
 
+		readable, err := datafile.NewReadOnlyDatafile(db.WFile.GetPath(db.directory))
+		if err != nil {
+			return err
+		}
+
+		db.Manager[db.WFile.ID()] = readable
 	}
 
 	entry, err := db.WFile.Write(key, value)

@@ -98,3 +98,39 @@ func TestBasicOperations(t *testing.T) {
 		}
 	}
 }
+
+func TestPersistance(t *testing.T) {
+	db := createTestDatabase(t)
+	stored := []string{}
+	for i := 0; i < 1000; i++ {
+		randNumber := strconv.Itoa(rand.Int())
+
+		if err := db.Put([]byte(randNumber), []byte("value"+randNumber)); err != nil {
+			t.Errorf("error putting value into database.")
+		}
+
+		if rand.Int()%7 == 0 {
+			stored = append(stored, randNumber)
+		}
+	}
+
+	for _, key := range stored {
+		if _, err := db.Get([]byte(key)); err != nil {
+			t.Errorf("could not get key %s", key)
+		}
+	}
+
+	// close the database and try to read from it
+	db.Close()
+
+	db, err := bitcask.Open("./data", nil)
+	if err != nil {
+		t.Fatalf("could not create a database instance: %s", err)
+	}
+
+	for _, key := range stored {
+		if _, err := db.Get([]byte(key)); err != nil {
+			t.Errorf("could not get key after closing.")
+		}
+	}
+}
