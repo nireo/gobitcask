@@ -145,11 +145,12 @@ func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
 	}
 
 	// now that we have stored the value offset we can add to it
+	valOffset := df.offset + 16 + int64(len(key))
 	df.offset += int64(sz)
 
 	return &keydir.MemEntry{
 		Timestamp: timestamp,
-		ValOffset: df.offset,
+		ValOffset: valOffset,
 		ValSize:   uint32(len(value)),
 		FileID:    df.id,
 	}, nil
