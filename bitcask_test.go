@@ -134,3 +134,40 @@ func TestPersistance(t *testing.T) {
 		}
 	}
 }
+
+func TestNewWritableFileCreation(t *testing.T) {
+	db, err := bitcask.Open("./data", &bitcask.Options{
+		// make the size smaller just that we don't have to wait so long for the
+		// test.
+		MaxDatafileSize: 20 * 1024,
+	})
+
+	if err != nil {
+		t.Fatalf("could not create a database instance: %s", err)
+	}
+	defer db.Close()
+
+	for i := 0; i < 1e6; i++ {
+		randNumber := strconv.Itoa(rand.Int())
+
+		if err := db.Put([]byte(randNumber), []byte("value"+randNumber)); err != nil {
+			t.Errorf("error putting value into database: %s", err)
+		}
+	}
+
+	files, err := ioutil.ReadDir(db.GetDirectory())
+	if err != nil {
+		t.Errorf("error reading files from directory: %s", err)
+	}
+
+	count := 0
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".df") {
+			count++
+		}
+	}
+
+	if count == 1 {
+		t.Errorf("there should be more than 1 datafile in the directory after writing")
+	}
+}

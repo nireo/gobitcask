@@ -2,6 +2,7 @@ package bitcask
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -35,9 +36,10 @@ type DB struct {
 	directory string
 
 	// mapping the file ids into the datafiles.
-	Manager map[uint32]*datafile.Datafile
-	WFile   *datafile.Datafile
-	rwmutex *sync.RWMutex
+	Manager              map[uint32]*datafile.Datafile
+	WFile                *datafile.Datafile
+	rwmutex              *sync.RWMutex
+	writeFileUpdateMutex *sync.Mutex
 }
 
 // GetDirectory returns the directory in which all the datafiles are begin stored.
@@ -95,10 +97,15 @@ func (db *DB) Put(key, value []byte) error {
 
 		readable, err := datafile.NewReadOnlyDatafile(db.WFile.GetPath(db.directory))
 		if err != nil {
-			return err
+			return fmt.Errorf("error opening readable file: %s", err)
 		}
 
 		db.Manager[db.WFile.ID()] = readable
+		writableFile, err := datafile.NewDatafile(db.directory)
+		if err != nil {
+			return fmt.Errorf("error opening writable file: %s", err)
+		}
+		db.WFile = writableFile
 	}
 
 	entry, err := db.WFile.Write(key, value)

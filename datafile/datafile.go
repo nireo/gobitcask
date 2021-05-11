@@ -36,7 +36,7 @@ type Datafile struct {
 }
 
 func (df *Datafile) GetPath(directory string) string {
-	return filepath.Join(directory, df.file.Name())
+	return df.file.Name()
 }
 
 // NewDatafile creates a new datafile into a given directory. It also creates a fileid
