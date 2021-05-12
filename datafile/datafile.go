@@ -18,11 +18,47 @@ import (
 var (
 	ErrWrongByteCount = errors.New("wrote wrong amount of bytes to file.")
 	ErrNoFileID       = errors.New("the filename didn't contain a fileid")
+	ErrNotInManager   = errors.New("the given id was not found in the manager")
 )
 
+// DatafileManager takes care of managing read-only instances of datafiles.
 type DatafileManager struct {
 	datafiles map[uint32]*Datafile
-	sync.RWMutex
+	*sync.RWMutex
+}
+
+// Set simply adds a given datafile into the manager. This datafile should be in
+// read-only mode. And not in write mode.
+func (dfm *DatafileManager) Set(df *Datafile) {
+	dfm.Lock()
+	defer dfm.Unlock()
+
+	dfm.datafiles[df.ID()] = df
+}
+
+// Delete removes a datafile from the manager
+func (dfm *DatafileManager) Delete(id uint32) error {
+	dfm.Lock()
+	defer dfm.Unlock()
+
+	df, ok := dfm.datafiles[id]
+	if !ok {
+		return ErrNotInManager
+	}
+	// make sure we close the file
+	df.Close()
+
+	delete(dfm.datafiles, id)
+	return nil
+}
+
+// Get returns a datafile from the manager
+func (dfm *DatafileManager) Get(id uint32) *Datafile {
+	dfm.RLock()
+	defer dfm.RUnlock()
+
+	df, _ := dfm.datafiles[id]
+	return df
 }
 
 type Datafile struct {
@@ -63,6 +99,8 @@ func NewDatafile(directory string) (*Datafile, error) {
 	}, nil
 }
 
+// NewReadOnlyDatafile takes in a path for a datafile and then opens a read-only pointer to that file
+// This is done such the other datafiles cannot be written after the current datafile is changed.
 func NewReadOnlyDatafile(path string) (*Datafile, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0777)
 	if err != nil {
@@ -84,6 +122,8 @@ func NewReadOnlyDatafile(path string) (*Datafile, error) {
 	}, nil
 }
 
+// ParseID parses the last number from a given path. We take the last number since the directory in
+// which the datafiles are held in could contain a number.
 func ParseID(path string) (uint32, error) {
 	re := regexp.MustCompile("[0-9]+")
 	matches := re.FindAllString(path, -1)
