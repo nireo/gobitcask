@@ -1,11 +1,11 @@
 package bitcask
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +13,7 @@ import (
 	"github.com/nireo/bitcask/datafile"
 	"github.com/nireo/bitcask/hint"
 	"github.com/nireo/bitcask/keydir"
+	"github.com/nireo/bitcask/utils"
 )
 
 const (
@@ -49,12 +50,9 @@ func (db *DB) GetDirectory() string {
 
 // Open starts the database from a directory
 func Open(directory string, options *Options) (*DB, error) {
-	// check if the directory exists
-	if _, err := os.Stat(directory); os.IsNotExist(err) {
-		// it doesnt exist
-		if err := os.Mkdir(directory, 0777); err != nil {
-			return nil, err
-		}
+	// Make sure that a directory exists for the datafiles and hintfiles.
+	if err := utils.CreateDirectoryIfNotExist(directory); err != nil {
+		return nil, err
 	}
 
 	if options == nil {
@@ -119,6 +117,11 @@ func (db *DB) Put(key, value []byte) error {
 	return nil
 }
 
+// Delete removes a value from the database.
+func (db *DB) Delete(key []byte) error {
+	return db.Put(key, []byte("\x00"))
+}
+
 // Close closes the database this is normally used when defering
 func (db *DB) Close() {
 	db.WFile.Close()
@@ -142,6 +145,11 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	value, err := file.ReadOffset(entry.ValOffset, entry.ValSize)
 	if err != nil {
 		return nil, errors.New("could not find key in the specified data file")
+	}
+
+	// check if the key has been deleted
+	if !bytes.Equal(value, []byte("\x00")) {
+		return nil, errors.New("key was not found.")
 	}
 
 	return value, nil
@@ -203,6 +211,36 @@ func (db *DB) parsePersistanceFiles() error {
 			log.Printf("could not parse file: %d", fileID)
 			continue
 		}
+	}
+
+	return nil
+}
+
+func (db *DB) getToBeMerged() ([]string, error) {
+	files, err := ioutil.ReadDir(db.directory)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []string
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".hnt") && file.Size() < db.Options.MaxDatafileSize {
+			res = append(res, filepath.Join(db.directory, file.Name()))
+		}
+	}
+
+	return res, nil
+}
+
+func (db *DB) mergeFiles() error {
+	canBeMerged, err := db.getToBeMerged()
+	if err != nil {
+		return err
+	}
+
+	for _, file := range canBeMerged {
+		// TODO: scan the file using a datafile scanner.
+		fmt.Printf("merging: %s\n", file)
 	}
 
 	return nil
