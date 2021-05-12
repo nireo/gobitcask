@@ -1,6 +1,7 @@
 package datafile
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -61,6 +62,8 @@ func (dfm *DatafileManager) Get(id uint32) *Datafile {
 	return df
 }
 
+// Datafile represents a file that contains all the information about a key-value pair. It also contains
+// a hint file which contains less information about the pairs to lower start-up time.
 type Datafile struct {
 	file *os.File
 	id   uint32 // id is the unix timestamp in uint32 form
@@ -69,6 +72,23 @@ type Datafile struct {
 	offset int64
 
 	hintFile *hint.HintFile
+}
+
+// DatafileScanner contains a bufio.Scanner that has a certain Split method specified to properly
+// go through the entries in a simple fashion.
+type DatafileScanner struct {
+	*bufio.Scanner
+}
+
+// Entry represents all of the data in a datafile entry excluding the CRC32 hash, since that
+// is checked before creating an entry instance.
+type Entry struct {
+	Timestamp uint32
+	KeySize   uint32
+	ValueSize uint32
+
+	Key   []byte
+	Value []byte
 }
 
 func (df *Datafile) GetPath(directory string) string {
@@ -196,6 +216,7 @@ func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
 	}, nil
 }
 
+// Close closes the datafile file pointer and the hint pointer.
 func (df *Datafile) Close() {
 	df.file.Close()
 	df.hintFile.Close()
@@ -206,6 +227,42 @@ func (df *Datafile) Offset() int64 {
 	return df.offset
 }
 
+// ID returns the id the datafile has. This ID is the timestamp of the time when the instance was created.
 func (df *Datafile) ID() uint32 {
 	return df.id
+}
+
+// InitDataFileScanner creates a new scanner that can read entries in a datafile one by one.
+func InitDatafileScanner(file *os.File) *DatafileScanner {
+	s := bufio.NewScanner(file)
+	buffer := make([]byte, 4096)
+	s.Buffer(buffer, bufio.MaxScanTokenSize)
+	s.Split(func(data []byte, atEOF bool) (int, []byte, error) {
+		_, ksize, vsize, _, _, err := encoder.DecodeAll(data)
+		if err != nil {
+			return int(16 + ksize + vsize), data[:16+ksize+vsize], nil
+		}
+
+		return 0, nil, nil
+	})
+
+	return &DatafileScanner{s}
+}
+
+// Next reads the next entry in the datafile. It returns a error meaning that all of the
+// values have been read.
+func (dfs *DatafileScanner) Next() (*Entry, error) {
+	dfs.Scan()
+	timestamp, ksize, vsize, key, value, err := encoder.DecodeAll(dfs.Bytes())
+	if err != nil {
+		return nil, errors.New("could not read entry")
+	}
+
+	return &Entry{
+		Timestamp: timestamp,
+		KeySize:   ksize,
+		ValueSize: vsize,
+		Key:       key,
+		Value:     value,
+	}, nil
 }

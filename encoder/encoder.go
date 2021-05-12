@@ -46,6 +46,10 @@ func DecodeEntryValue(data []byte) ([]byte, error) {
 
 // DecodeAll returns all of the information and returns all of the variables.
 func DecodeAll(data []byte) (timestamp, ksize, vsize uint32, key, value []byte, err error) {
+	if len(data) < 17 {
+		return 0, 0, 0, nil, nil, errors.New("too few bytes to properly read")
+	}
+
 	timestamp = binary.LittleEndian.Uint32(data[4:8])
 	ksize = binary.LittleEndian.Uint32(data[8:12])
 	vsize = binary.LittleEndian.Uint32(data[12:16])
