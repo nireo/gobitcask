@@ -233,17 +233,17 @@ func (df *Datafile) ID() uint32 {
 }
 
 // InitDataFileScanner creates a new scanner that can read entries in a datafile one by one.
-func InitDatafileScanner(file *os.File) *DatafileScanner {
-	s := bufio.NewScanner(file)
+func InitDatafileScanner(df *Datafile) *DatafileScanner {
+	s := bufio.NewScanner(df.file)
 	buffer := make([]byte, 4096)
 	s.Buffer(buffer, bufio.MaxScanTokenSize)
 	s.Split(func(data []byte, atEOF bool) (int, []byte, error) {
 		_, ksize, vsize, _, _, err := encoder.DecodeAll(data)
-		if err != nil {
+		if err == nil {
 			return int(16 + ksize + vsize), data[:16+ksize+vsize], nil
 		}
 
-		return 0, nil, nil
+		return 0, nil, err
 	})
 
 	return &DatafileScanner{s}
@@ -255,7 +255,7 @@ func (dfs *DatafileScanner) Next() (*Entry, error) {
 	dfs.Scan()
 	timestamp, ksize, vsize, key, value, err := encoder.DecodeAll(dfs.Bytes())
 	if err != nil {
-		return nil, errors.New("could not read entry")
+		return nil, err
 	}
 
 	return &Entry{
