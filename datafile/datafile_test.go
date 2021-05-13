@@ -105,12 +105,12 @@ func TestDatafileScanner(t *testing.T) {
 
 	scanner := datafile.InitDatafileScanner(df)
 
-	fentry1, err := scanner.Next()
+	fentry1, err := scanner.Scan()
 	if err != nil {
 		t.Errorf("error scanning first entry: %s", err)
 	}
 
-	fentry2, err := scanner.Next()
+	fentry2, err := scanner.Scan()
 	if err != nil {
 		t.Errorf("error scanning second entry: %s", err)
 	}

@@ -1,9 +1,9 @@
 package datafile
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -77,7 +77,9 @@ type Datafile struct {
 // DatafileScanner contains a bufio.Scanner that has a certain Split method specified to properly
 // go through the entries in a simple fashion.
 type DatafileScanner struct {
-	*bufio.Scanner
+	file   *os.File
+	offset int64
+	amount int
 }
 
 // Entry represents all of the data in a datafile entry excluding the CRC32 hash, since that
@@ -181,6 +183,57 @@ func (df *Datafile) ReadOffset(offset int64, valueSize uint32) ([]byte, error) {
 	return buffer, nil
 }
 
+func (dfs *DatafileScanner) Scan() (*Entry, error) {
+	metaBuffer := make([]byte, 16, 16)
+	nBytes, err := dfs.file.ReadAt(metaBuffer, dfs.offset)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	// we are at the end of the file so we should stop reading.
+	if err == io.EOF {
+		return nil, io.EOF
+	}
+
+	// we didn't read enough bytes
+	if nBytes != 16 {
+		return nil, ErrWrongByteCount
+	}
+	dfs.offset += int64(nBytes)
+
+	_, timestamp, vsize, ksize := encoder.DecodeEntryMeta(metaBuffer)
+	key := make([]byte, ksize)
+
+	nBytes, err = dfs.file.ReadAt(key, dfs.offset)
+	if err != nil {
+		return nil, err
+	}
+
+	if nBytes != int(ksize) {
+		return nil, ErrWrongByteCount
+	}
+	dfs.offset += int64(nBytes)
+
+	value := make([]byte, vsize)
+	nBytes, err = dfs.file.ReadAt(value, dfs.offset)
+	if err != nil {
+		return nil, err
+	}
+
+	if nBytes != int(vsize) {
+		return nil, ErrWrongByteCount
+	}
+	dfs.offset += int64(nBytes)
+
+	return &Entry{
+		Timestamp: timestamp,
+		KeySize:   ksize,
+		ValueSize: vsize,
+		Key:       key,
+		Value:     value,
+	}, nil
+}
+
 // write writes a key-value pair in to a datafile. It also returns key-metadata such that it is
 // easier to then append this key into the key-dir.
 func (df *Datafile) Write(key, value []byte) (*keydir.MemEntry, error) {
@@ -234,35 +287,9 @@ func (df *Datafile) ID() uint32 {
 
 // InitDataFileScanner creates a new scanner that can read entries in a datafile one by one.
 func InitDatafileScanner(df *Datafile) *DatafileScanner {
-	s := bufio.NewScanner(df.file)
-	buffer := make([]byte, 4096)
-	s.Buffer(buffer, bufio.MaxScanTokenSize)
-	s.Split(func(data []byte, atEOF bool) (int, []byte, error) {
-		_, ksize, vsize, _, _, err := encoder.DecodeAll(data)
-		if err == nil {
-			return int(16 + ksize + vsize), data[:16+ksize+vsize], nil
-		}
-
-		return 0, nil, err
-	})
-
-	return &DatafileScanner{s}
-}
-
-// Next reads the next entry in the datafile. It returns a error meaning that all of the
-// values have been read.
-func (dfs *DatafileScanner) Next() (*Entry, error) {
-	dfs.Scan()
-	timestamp, ksize, vsize, key, value, err := encoder.DecodeAll(dfs.Bytes())
-	if err != nil {
-		return nil, err
+	return &DatafileScanner{
+		amount: 0,
+		offset: 0,
+		file:   df.file,
 	}
-
-	return &Entry{
-		Timestamp: timestamp,
-		KeySize:   ksize,
-		ValueSize: vsize,
-		Key:       key,
-		Value:     value,
-	}, nil
 }
