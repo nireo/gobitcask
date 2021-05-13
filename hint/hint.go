@@ -1,14 +1,18 @@
 package hint
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/nireo/bitcask/encoder"
 	"github.com/nireo/bitcask/keydir"
+)
+
+var (
+	ErrWrongByteCount = errors.New("wrote wrong amount of bytes to file.")
 )
 
 // HintFile represents a hint file that has
@@ -17,7 +21,8 @@ type HintFile struct {
 }
 
 type HintScanner struct {
-	*bufio.Scanner
+	offset int64
+	file   *os.File
 }
 
 // Close closes the file pointer
@@ -47,34 +52,45 @@ func (hf *HintFile) Append(timestamp, vsize uint32, offset int64, key []byte) er
 	return nil
 }
 
-func InitHintScanner(file *os.File) *HintScanner {
-	s := bufio.NewScanner(file)
-	buffer := make([]byte, 4096)
-	s.Buffer(buffer, bufio.MaxScanTokenSize)
-	s.Split(func(data []byte, atEOF bool) (int, []byte, error) {
-		_, _, _, _, bytesRead := DecodeHint(data)
-		if bytesRead != 0 {
-			return int(bytesRead), data[:bytesRead], nil
-		}
-
-		return 0, nil, nil
-	})
-
-	return &HintScanner{s}
-}
-
-func (hs *HintScanner) Next() (*keydir.MemEntry, []byte, error) {
-	hs.Scan()
-	timestamp, vsize, offset, key, bytesRead := DecodeHint(hs.Bytes())
-	if bytesRead == 0 {
-		return nil, nil, errors.New("could not read entry")
+func (hfs *HintScanner) Scan() (*keydir.MemEntry, []byte, error) {
+	metaBuffer := make([]byte, 20, 20)
+	nBytes, err := hfs.file.ReadAt(metaBuffer, hfs.offset)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	// we didn't read enough bytes
+	if nBytes != 20 {
+		return nil, nil, ErrWrongByteCount
+	}
+	hfs.offset += int64(nBytes)
+
+	timestamp, ksize, vsize, offset := encoder.DecodeHintMeta(metaBuffer)
+	key := make([]byte, ksize)
+
+	nBytes, err = hfs.file.ReadAt(key, hfs.offset)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if nBytes != int(ksize) {
+		return nil, nil, ErrWrongByteCount
+	}
+	hfs.offset += int64(nBytes)
 
 	return &keydir.MemEntry{
 		Timestamp: timestamp,
-		ValSize:   vsize,
 		ValOffset: offset,
+		ValSize:   vsize,
 	}, key, nil
+}
+
+// InitDataFileScanner creates a new scanner that can read entries in a datafile one by one.
+func InitHintScanner(hintFile *os.File) *HintScanner {
+	return &HintScanner{
+		offset: 0,
+		file:   hintFile,
+	}
 }
 
 // DecodeHint returns all of information stored in a mementry and lastly it also returns
@@ -118,7 +134,7 @@ func AppendPathToKeyDir(path string, dataFileID uint32, kd *keydir.KeyDir) error
 
 	scanner := InitHintScanner(f)
 	for {
-		mementry, key, err := scanner.Next()
+		mementry, key, err := scanner.Scan()
 		if err != nil {
 			break
 		}

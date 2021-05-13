@@ -164,7 +164,7 @@ func TestScanner(t *testing.T) {
 
 	scanner := hint.InitHintScanner(f)
 	for _, key := range keys {
-		mementry, key2, err := scanner.Next()
+		mementry, key2, err := scanner.Scan()
 		if err != nil {
 			t.Errorf("could not read key from file")
 			break

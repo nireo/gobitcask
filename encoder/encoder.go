@@ -26,6 +26,17 @@ func EncodeEntry(key []byte, value []byte, ts uint32) []byte {
 	return buffer
 }
 
+// DecodeEntryMeta decodes a byte buffer of length 16 and then returns the metadata information
+// about the given entry.
+func DecodeEntryMeta(data []byte) (uint32, uint32, uint32, uint32) {
+	crc := binary.LittleEndian.Uint32(data[4:8])
+	timestamp := binary.LittleEndian.Uint32(data[4:8])
+	ksize := binary.LittleEndian.Uint32(data[8:12])
+	vsize := binary.LittleEndian.Uint32(data[12:16])
+
+	return crc, timestamp, ksize, vsize
+}
+
 // DecodeEntryValue takes in some data and decodes the value from the data.
 func DecodeEntryValue(data []byte) ([]byte, error) {
 	ksize := binary.LittleEndian.Uint32(data[8:12])
@@ -44,18 +55,29 @@ func DecodeEntryValue(data []byte) ([]byte, error) {
 	return value, nil
 }
 
+// DecodeHintMeta takes in a buffer of length 20 and parses hint metadata from it.
+// It also expects the buffer to be 20 bytes long otherwise a panic will happen.
+func DecodeHintMeta(metaBuffer []byte) (uint32, uint32, uint32, int64) {
+	timestamp := binary.LittleEndian.Uint32(metaBuffer[:4])
+	ksize := binary.LittleEndian.Uint32(metaBuffer[4:8])
+	vsize := binary.LittleEndian.Uint32(metaBuffer[8:12])
+	offset := binary.LittleEndian.Uint64(metaBuffer[12:20])
+
+	return timestamp, ksize, vsize, int64(offset)
+}
+
 // DecodeAll returns all of the information and returns all of the variables.
-func DecodeAll(data []byte) (timestamp, ksize, vsize uint32, key, value []byte, err error) {
-	if len(data) < 17 {
+func DecodeAll(data []byte) (uint32, uint32, uint32, []byte, []byte, error) {
+	if len(data) < 20 {
 		return 0, 0, 0, nil, nil, errors.New("too few bytes to properly read")
 	}
 
-	timestamp = binary.LittleEndian.Uint32(data[4:8])
-	ksize = binary.LittleEndian.Uint32(data[8:12])
-	vsize = binary.LittleEndian.Uint32(data[12:16])
+	timestamp := binary.LittleEndian.Uint32(data[4:8])
+	ksize := binary.LittleEndian.Uint32(data[8:12])
+	vsize := binary.LittleEndian.Uint32(data[12:16])
 
-	key = make([]byte, ksize)
-	value = make([]byte, vsize)
+	key := make([]byte, ksize)
+	value := make([]byte, vsize)
 	copy(key, data[16:16+ksize])
 	copy(value, data[16+ksize:16+ksize+vsize])
 
@@ -63,7 +85,6 @@ func DecodeAll(data []byte) (timestamp, ksize, vsize uint32, key, value []byte, 
 	if crc32.ChecksumIEEE(data[4:]) != crc {
 		return 0, 0, 0, nil, nil, errors.New("the crc32 checksum doesn't match")
 	}
-	err = nil
 
-	return
+	return timestamp, ksize, vsize, key, value, nil
 }
