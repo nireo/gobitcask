@@ -8,7 +8,7 @@ import (
 	"github.com/nireo/bitcask/encoder"
 )
 
-func TestEncodeDecode(t *testing.T) {
+func TestEntryEncodeDecode(t *testing.T) {
 	ts := uint32(time.Now().Unix())
 	data := encoder.EncodeEntry([]byte("hello"), []byte("world"), ts)
 

@@ -41,6 +41,8 @@ type DB struct {
 	WFile                *datafile.Datafile
 	rwmutex              *sync.RWMutex
 	writeFileUpdateMutex *sync.Mutex
+
+	isMerging bool
 }
 
 // GetDirectory returns the directory in which all the datafiles are begin stored.
@@ -67,6 +69,7 @@ func Open(directory string, options *Options) (*DB, error) {
 		rwmutex:   &sync.RWMutex{},
 		directory: directory,
 		Manager:   make(map[uint32]*datafile.Datafile),
+		isMerging: false,
 	}
 
 	if err := db.parsePersistanceFiles(); err != nil {
@@ -148,7 +151,7 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	}
 
 	// check if the key has been deleted
-	if !bytes.Equal(value, []byte("\x00")) {
+	if bytes.Equal(value, []byte("\x00")) {
 		return nil, errors.New("key was not found.")
 	}
 
@@ -239,8 +242,9 @@ func (db *DB) mergeFiles() error {
 	}
 
 	for _, file := range canBeMerged {
-		// TODO: scan the file using a datafile scanner.
-		fmt.Printf("merging: %s\n", file)
+		if _, err := utils.CopyFile(file, file+".tmp"); err != nil {
+			continue
+		}
 	}
 
 	return nil

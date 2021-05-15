@@ -130,7 +130,7 @@ func TestPersistance(t *testing.T) {
 
 	for _, key := range stored {
 		if _, err := db.Get([]byte(key)); err != nil {
-			t.Errorf("could not get key after closing.")
+			t.Errorf("could not get key after closing. %s", err)
 		}
 	}
 }
@@ -169,5 +169,16 @@ func TestNewWritableFileCreation(t *testing.T) {
 
 	if count == 1 {
 		t.Errorf("there should be more than 1 datafile in the directory after writing")
+	}
+}
+
+func TestDelete(t *testing.T) {
+	db := createTestDatabase(t)
+
+	db.Put([]byte("hello"), []byte("world"))
+	db.Delete([]byte("hello"))
+
+	if _, err := db.Get([]byte("hello")); err == nil {
+		t.Errorf("found key after deletion")
 	}
 }
