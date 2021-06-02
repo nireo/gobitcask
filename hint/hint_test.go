@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nireo/bitcask/encoder"
 	"github.com/nireo/bitcask/hint"
 	"github.com/nireo/bitcask/keydir"
 )
@@ -73,7 +74,7 @@ func TestEncodingDecoding(t *testing.T) {
 		t.Errorf("error reading data from the file: %s", err)
 	}
 
-	timestamp2, vsize2, offset2, key2, nBytes := hint.DecodeHint(data)
+	timestamp2, vsize2, offset2, key2, nBytes := encoder.DecodeHint(data)
 	if int(nBytes) != len(data) {
 		t.Errorf("wrong amount of data read")
 	}

@@ -88,3 +88,33 @@ func DecodeAll(data []byte) (uint32, uint32, uint32, []byte, []byte, error) {
 
 	return timestamp, ksize, vsize, key, value, nil
 }
+
+// EncodeHint takes in all of the data contained in hints and returns a byte buffer
+// that contains all of it.
+func EncodeHint(timestamp, vsize uint32, offset int64, key []byte) []byte {
+	buffer := make([]byte, 20)
+	binary.LittleEndian.PutUint32(buffer[0:4], timestamp)
+	binary.LittleEndian.PutUint32(buffer[4:8], uint32(len(key)))
+	binary.LittleEndian.PutUint32(buffer[8:12], vsize)
+	binary.LittleEndian.PutUint64(buffer[12:20], uint64(offset))
+	buffer = append(buffer[:], key[:]...)
+
+	return buffer
+}
+
+// DecodeHint returns all of information stored in a mementry and lastly it also returns
+// the amount of bytes read. Such that the scanning through the values works better.
+func DecodeHint(buffer []byte) (uint32, uint32, int64, []byte, uint32) {
+	if len(buffer) < 20 {
+		return 0, 0, 0, nil, 0
+	}
+
+	timestamp := binary.LittleEndian.Uint32(buffer[:4])
+	vsize := binary.LittleEndian.Uint32(buffer[8:12])
+	offset := binary.LittleEndian.Uint64(buffer[12:20])
+
+	ksize := binary.LittleEndian.Uint32(buffer[4:8])
+	key := buffer[20 : ksize+20]
+
+	return timestamp, vsize, int64(offset), key, 20 + ksize
+}

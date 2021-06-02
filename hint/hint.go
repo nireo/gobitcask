@@ -1,7 +1,6 @@
 package hint
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -32,14 +31,7 @@ func (hf *HintFile) Close() {
 
 // Append compiles data for a hint entry and appends to the end of the file pointer
 func (hf *HintFile) Append(timestamp, vsize uint32, offset int64, key []byte) error {
-	// This buffer contains the timestamp, key and value size and finally the entire key.
-	buffer := make([]byte, 20)
-	binary.LittleEndian.PutUint32(buffer[0:4], timestamp)
-	binary.LittleEndian.PutUint32(buffer[4:8], uint32(len(key)))
-	binary.LittleEndian.PutUint32(buffer[8:12], vsize)
-	binary.LittleEndian.PutUint64(buffer[12:20], uint64(offset))
-
-	buffer = append(buffer[:], key[:]...)
+	buffer := encoder.EncodeHint(timestamp, vsize, offset, key)
 	nBytes, err := hf.File.Write(buffer)
 	if err != nil {
 		return err
@@ -91,23 +83,6 @@ func InitHintScanner(hintFile *os.File) *HintScanner {
 		offset: 0,
 		file:   hintFile,
 	}
-}
-
-// DecodeHint returns all of information stored in a mementry and lastly it also returns
-// the amount of bytes read. Such that the scanning through the values works better.
-func DecodeHint(buffer []byte) (uint32, uint32, int64, []byte, uint32) {
-	if len(buffer) < 20 {
-		return 0, 0, 0, nil, 0
-	}
-
-	timestamp := binary.LittleEndian.Uint32(buffer[:4])
-	vsize := binary.LittleEndian.Uint32(buffer[8:12])
-	offset := binary.LittleEndian.Uint64(buffer[12:20])
-
-	ksize := binary.LittleEndian.Uint32(buffer[4:8])
-	key := buffer[20 : ksize+20]
-
-	return timestamp, vsize, int64(offset), key, 20 + ksize
 }
 
 // NewHintFile creates a new hint file from a timestamp

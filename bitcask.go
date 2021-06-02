@@ -21,16 +21,21 @@ const (
 	MaxDatafileSize int64 = 512 * 1024 * 1024
 )
 
+// Options represents the configuration the user can do.
 type Options struct {
 	MaxDatafileSize int64
 }
 
+// DefaultConfiguration just returns the default options used by the database if
+// the database options are not set by the user.
 func DefaultConfigurtion() *Options {
 	return &Options{
 		MaxDatafileSize: MaxDatafileSize,
 	}
 }
 
+// DB represents the whole database and it manages all the operations like adding, deleting
+// and settings.
 type DB struct {
 	Options   *Options
 	KeyDir    *keydir.KeyDir
